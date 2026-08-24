@@ -1,3 +1,5 @@
+[English](https://github.com/Anan-up/Windows-Blue-Screen-Update-Webpage/blob/main/README.md) | [简中](https://github.com/Anan-up/Windows-Blue-Screen-Update-Webpage/blob/main/README_Simplified_Chinese.md) | [文言](https://github.com/Anan-up/Windows-Blue-Screen-Update-Webpage/blob/main/README_Classical_Chinese.md)
+
 # win-screens.html
 
 ## File Overview
