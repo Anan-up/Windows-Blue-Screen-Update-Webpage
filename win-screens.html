@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Windows 蓝屏 / 更新界面模拟器</title>
+<style>
+  :root {
+    --hud-bg: rgba(20, 20, 24, 0.85);
+    --hud-fg: #e8e8ea;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; font-family: "Segoe UI", system-ui, sans-serif; }
+  body { background: #000; }
+
+  /* ---------- 屏幕容器 ---------- */
+  .screen {
+    position: fixed;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity .25s ease;
+    user-select: none;
+  }
+  .screen.active { display: flex; opacity: 1; }
+
+  /* ================= Windows 7 蓝屏 (文本模式) ================= */
+  #s7-bsod {
+    background: #0a0aa0;
+    color: #fff;
+    font-family: "Lucida Console", "Courier New", monospace;
+    font-size: clamp(11px, 1.5vw, 16px);
+    line-height: 1.35;
+    text-align: left;
+    padding: 3vh 6vw 1vh 4vw;
+    justify-content: flex-start;
+    align-items: flex-start;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  #s7-bsod::-webkit-scrollbar { display: none; }
+  #s7-bsod .wrap { max-width: 860px; margin: 0; white-space: pre-wrap; text-align: left; }
+  #s7-bsod b { color: #fff; font-weight: 700; }
+
+  /* ================= Windows 7 更新界面 ================= */
+  #s7-update {
+    background: #000;
+    color: #fff;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: clamp(18px, 2.4vw, 30px);
+    text-align: center;
+    gap: 40px;
+  }
+  #s7-update .title { font-weight: 300; }
+  #s7-update .sub { font-size: clamp(13px, 1.4vw, 18px); color: #cfcfcf; }
+  #s7-update .bar {
+    width: min(520px, 70vw); height: 16px;
+    border: 2px solid #5a5a5a; border-radius: 2px; overflow: hidden;
+  }
+  #s7-update .bar > i {
+    display: block; height: 100%; width: 0%;
+    background: linear-gradient(90deg, #2a6fdb, #5aa0ff);
+    transition: width .3s linear;
+  }
+
+  /* ================= Windows 10 / 11 蓝屏 ================= */
+  .bsod10 {
+    background: #0078d7;
+    color: #fff;
+    text-align: left;
+    padding: 0 8vw;
+    gap: 18px;
+    align-items: flex-start;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  .bsod10 .face { font-size: clamp(60px, 11vw, 130px); line-height: 1; font-weight: 300; }
+  .bsod10 .msg { font-size: clamp(16px, 2.2vw, 28px); max-width: 720px; font-weight: 300; }
+  .bsod10 .msg b { font-weight: 600; }
+  .bsod10 .pct { font-size: clamp(16px, 2.2vw, 28px); font-weight: 300; }
+  .bsod10 .qr {
+    position: absolute; right: 7vw; bottom: 9vh;
+    width: clamp(92px, 11vw, 144px); height: clamp(92px, 11vw, 144px);
+    background: #fff;
+    padding: 0;
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.25);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .bsod10 .qr svg { width: 100%; height: 100%; display: block; }
+  .bsod10 .info {
+    position: absolute; left: 8vw; bottom: 9vh;
+    font-size: clamp(12px, 1.3vw, 16px); color: #d6ecff; max-width: 460px;
+    line-height: 1.6;
+  }
+
+  /* Win11 蓝屏：更简洁，去掉部分文字、留白更多 */
+  #s11-bsod { background: #0067c0; }
+  #s11-bsod .msg { max-width: 640px; }
+
+  /* ================= Windows 10 / 11 更新界面 ================= */
+  .upd10 {
+    background: #0d0d12;
+    color: #fff;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    gap: 26px;
+  }
+  .upd10 .ring {
+    width: clamp(90px, 14vw, 160px); height: clamp(90px, 14vw, 160px);
+    transform: rotate(-90deg);
+  }
+  .upd10 .ring circle { fill: none; stroke-width: 6; }
+  .upd10 .ring .track { stroke: #2b2b33; }
+  .upd10 .ring .prog { stroke: #fff; stroke-linecap: round; transition: stroke-dashoffset .4s linear; }
+  .upd10 .pct { font-size: clamp(34px, 6vw, 64px); font-weight: 300; margin-top: -8px; }
+  .upd10 .txt { font-size: clamp(14px, 1.7vw, 20px); color: #cfcfd6; text-align: center; max-width: 640px; line-height: 1.6; }
+
+  /* ================= HUD 导航 ================= */
+  #hud {
+    position: fixed; top: 16px; right: 16px; z-index: 50;
+    background: var(--hud-bg); color: var(--hud-fg);
+    border-radius: 12px; padding: 12px 14px;
+    font-size: 13px; line-height: 1.7;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.12);
+    max-width: 260px;
+    transition: opacity .2s;
+  }
+  #hud h1 { font-size: 14px; margin-bottom: 6px; font-weight: 600; }
+  #hud .pos { font-weight: 700; color: #7cc4ff; }
+  #hud .grid { display: grid; grid-template-columns: repeat(2, 22px); gap: 6px; margin: 8px 0; }
+  #hud .cell {
+    width: 22px; height: 22px; border-radius: 5px;
+    border: 1px solid rgba(255,255,255,.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; cursor: pointer; color: #bbb;
+  }
+  #hud .cell.cur { background: #2a6fdb; border-color: #5aa0ff; color: #fff; }
+  #hud .hint { color: #aaa; font-size: 12px; }
+  #hud kbd {
+    background: #2a2a32; border: 1px solid #444; border-radius: 4px;
+    padding: 1px 6px; font-family: inherit; font-size: 11px;
+  }
+  #hud.hidden { opacity: 0; pointer-events: none; }
+
+</style>
+</head>
+<body>
+
+  <!-- ============ Windows 7 蓝屏 ============ -->
+  <section class="screen" id="s7-bsod" data-row="0" data-col="0">
+    <div class="wrap">Windows
+
+A problem has been detected and Windows has been shut down to prevent damage
+to your computer.
+
+<b>DRIVER_IRQL_NOT_LESS_OR_EQUAL</b>
+
+If this is the first time you've seen this Stop error screen,
+restart your computer. If this screen appears again, follow these
+steps:
+
+Check to make sure any new hardware or software is properly installed.
+If this is a new installation, ask your hardware or software manufacturer
+for any Windows updates you might need.
+
+If problems continue, disable or remove any newly installed hardware
+or software. Disable BIOS memory options such as caching or shadowing.
+
+Technical information:
+
+*** STOP: 0x000000D1 (0x0000000000000028, 0x0000000000000002,
+                 0x0000000000000000, 0xFFFFF8800123A4B0)
+
+***  nvlddmkm.sys - Address FFFFF8800123A4B0 base at FFFFF88001100000
+
+Collecting data for crash dump ...
+Initializing disk for crash dump ...
+Beginning dump of physical memory.
+Memory dump complete.
+Contact your system administrator or technical support group for further
+assistance.</div>
+  </section>
+
+  <!-- ============ Windows 7 更新 ============ -->
+  <section class="screen" id="s7-update" data-row="0" data-col="1">
+    <div class="title">正在配置 Windows 更新</div>
+    <div class="bar"><i id="s7bar"></i></div>
+    <div class="sub" id="s7sub">0% 已完成</div>
+    <div class="sub">请勿关闭计算机。</div>
+  </section>
+
+  <!-- ============ Windows 10 蓝屏 ============ -->
+  <section class="screen bsod10" id="s10-bsod" data-row="1" data-col="0">
+    <div class="face">:(</div>
+    <div class="msg">您的电脑遇到问题，需要重新启动。我们只收集某些错误信息，然后为你重新启动。</div>
+    <div class="pct" id="s10pct">0% 已完成</div>
+    <div class="qr"><svg xmlns="http://www.w3.org/2000/svg" width="490mm" height="490mm" viewBox="0 0 490 490" class="segno"><path transform="scale(10)" class="qrrect" stroke="#000" d="M2 2.5h7m1 0h3m1 0h1m2 0h3m1 0h5m1 0h1m1 0h1m2 0h7m-37 1h1m5 0h1m2 0h2m1 0h3m3 0h1m1 0h2m2 0h3m3 0h1m5 0h1m-37 1h1m1 0h3m1 0h1m1 0h1m1 0h2m4 0h10m1 0h2m1 0h1m1 0h3m1 0h1m-37 1h1m1 0h3m1 0h1m3 0h4m3 0h2m2 0h5m4 0h1m1 0h3m1 0h1m-37 1h1m1 0h3m1 0h1m3 0h3m3 0h1m1 0h1m2 0h2m2 0h2m3 0h1m1 0h3m1 0h1m-37 1h1m5 0h1m1 0h2m4 0h2m1 0h2m3 0h1m1 0h2m4 0h1m5 0h1m-37 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-28 1h2m2 0h3m1 0h1m1 0h2m1 0h1m4 0h2m-29 1h1m1 0h1m3 0h2m3 0h1m3 0h1m1 0h1m2 0h2m1 0h3m5 0h1m2 0h1m1 0h1m-36 1h1m3 0h1m6 0h2m3 0h1m2 0h1m3 0h2m2 0h2m1 0h1m1 0h4m-37 1h1m1 0h2m2 0h4m4 0h2m4 0h1m1 0h3m2 0h1m2 0h1m1 0h1m3 0h1m-34 1h2m4 0h1m1 0h4m3 0h3m1 0h1m1 0h1m2 0h4m1 0h2m-34 1h2m1 0h1m1 0h2m3 0h1m3 0h2m4 0h1m2 0h2m3 0h1m1 0h1m2 0h1m2 0h1m-36 1h1m1 0h2m2 0h1m1 0h1m1 0h1m1 0h4m1 0h3m2 0h3m1 0h5m1 0h1m2 0h1m-35 1h1m2 0h3m2 0h1m2 0h1m1 0h1m1 0h3m1 0h1m1 0h1m3 0h1m2 0h1m2 0h2m1 0h1m-36 1h1m2 0h1m3 0h2m1 0h2m1 0h3m1 0h1m5 0h1m1 0h1m4 0h3m1 0h2m-36 1h1m2 0h3m4 0h1m2 0h1m1 0h3m2 0h5m4 0h3m2 0h2m-37 1h1m3 0h1m2 0h1m4 0h2m2 0h1m1 0h1m2 0h1m2 0h1m3 0h1m2 0h1m1 0h1m1 0h2m-36 1h1m2 0h6m4 0h1m1 0h1m2 0h1m1 0h3m2 0h3m1 0h2m1 0h2m1 0h1m-37 1h1m1 0h3m2 0h2m4 0h1m1 0h2m1 0h1m4 0h2m1 0h1m1 0h3m2 0h1m-33 1h2m2 0h2m1 0h1m1 0h2m1 0h2m1 0h1m2 0h2m1 0h1m1 0h1m3 0h1m1 0h2m1 0h1m1 0h1m-36 1h2m5 0h1m1 0h1m1 0h1m1 0h8m1 0h3m2 0h4m5 0h1m-37 1h1m1 0h1m1 0h3m1 0h1m1 0h2m2 0h3m2 0h1m1 0h3m2 0h4m3 0h2m1 0h1m-37 1h1m3 0h2m1 0h4m1 0h1m3 0h2m1 0h2m2 0h1m2 0h2m1 0h1m1 0h3m1 0h2m-36 1h1m2 0h3m1 0h4m3 0h1m1 0h1m1 0h5m1 0h1m1 0h2m1 0h1m1 0h1m2 0h1m-34 1h1m1 0h2m1 0h3m1 0h4m5 0h2m2 0h2m2 0h1m2 0h1m1 0h1m2 0h1m-37 1h3m3 0h1m2 0h1m1 0h1m2 0h2m2 0h1m1 0h1m2 0h1m3 0h1m2 0h1m3 0h1m1 0h1m-34 1h2m4 0h2m7 0h3m1 0h2m2 0h1m2 0h2m4 0h1m-36 1h4m2 0h4m5 0h1m2 0h1m4 0h1m3 0h7m2 0h1m-29 1h5m1 0h3m3 0h5m3 0h1m3 0h1m3 0h1m-37 1h7m1 0h1m1 0h1m1 0h2m1 0h1m1 0h3m3 0h1m1 0h1m2 0h1m1 0h1m1 0h1m2 0h2m-37 1h1m5 0h1m3 0h3m2 0h1m2 0h1m1 0h2m1 0h2m1 0h3m3 0h1m-33 1h1m1 0h3m1 0h1m2 0h1m1 0h3m1 0h4m2 0h1m3 0h1m1 0h6m2 0h2m-37 1h1m1 0h3m1 0h1m2 0h2m3 0h1m1 0h3m5 0h3m1 0h1m3 0h1m1 0h1m-35 1h1m1 0h3m1 0h1m1 0h1m1 0h4m2 0h1m1 0h2m1 0h3m1 0h1m3 0h1m1 0h2m3 0h1m-37 1h1m5 0h1m8 0h2m1 0h1m3 0h2m2 0h1m5 0h2m-34 1h7m1 0h1m1 0h3m1 0h1m4 0h1m2 0h3m1 0h1m1 0h1m2 0h1m1 0h2m1 0h1"/></svg></div>
+    <div class="info">
+      如需了解更多信息，可访问
+      https://www.bing.com/search?q=Windows+stop+code
+      <br>如果致电支持人员，请向他们提供以下信息：
+      <br>停止代码: <b>CRITICAL_PROCESS_DIED</b>
+    </div>
+  </section>
+
+  <!-- ============ Windows 10 更新 ============ -->
+  <section class="screen upd10" id="s10-update" data-row="1" data-col="1">
+    <svg class="ring" viewBox="0 0 100 100">
+      <circle class="track" cx="50" cy="50" r="44"></circle>
+      <circle class="prog" id="s10ring" cx="50" cy="50" r="44"></circle>
+    </svg>
+    <div class="pct" id="s10upd">0%</div>
+    <div class="txt">正在更新你的电脑，请勿关闭电源。<br>此过程需要一段时间，你的电脑可能会重启数次。</div>
+  </section>
+
+  <!-- ============ Windows 11 蓝屏 ============ -->
+  <section class="screen bsod10" id="s11-bsod" data-row="2" data-col="0">
+    <div class="face">:(</div>
+    <div class="msg">你的电脑遇到了一个问题，需要重新启动。我们会自动为你收集一些错误信息，然后重新启动。</div>
+    <div class="pct" id="s11pct">0% 已完成</div>
+    <div class="qr"><svg xmlns="http://www.w3.org/2000/svg" width="450mm" height="450mm" viewBox="0 0 450 450" class="segno"><path transform="scale(10)" class="qrrect" stroke="#000" d="M2 2.5h7m2 0h1m1 0h2m1 0h3m2 0h1m3 0h1m2 0h7m-33 1h1m5 0h1m2 0h1m2 0h1m2 0h1m1 0h1m2 0h2m1 0h2m1 0h1m5 0h1m-33 1h1m1 0h3m1 0h1m4 0h1m2 0h1m2 0h4m1 0h1m3 0h1m1 0h3m1 0h1m-33 1h1m1 0h3m1 0h1m2 0h5m3 0h1m4 0h1m1 0h1m1 0h1m1 0h3m1 0h1m-33 1h1m1 0h3m1 0h1m9 0h1m1 0h3m2 0h1m2 0h1m1 0h3m1 0h1m-33 1h1m5 0h1m1 0h2m1 0h2m4 0h1m1 0h1m4 0h1m1 0h1m5 0h1m-33 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-23 1h2m2 0h1m2 0h2m1 0h3m-23 1h1m2 0h1m1 0h2m1 0h3m2 0h4m4 0h1m1 0h3m1 0h1m-24 1h2m3 0h1m2 0h1m3 0h1m3 0h1m1 0h1m1 0h4m4 0h1m-33 1h1m1 0h1m2 0h2m2 0h3m4 0h2m1 0h4m1 0h1m1 0h3m1 0h1m1 0h1m-32 1h1m1 0h1m6 0h3m1 0h1m1 0h2m2 0h3m2 0h2m1 0h2m1 0h2m-31 1h5m1 0h3m4 0h1m4 0h2m3 0h2m2 0h1m1 0h1m-32 1h3m1 0h2m1 0h2m2 0h3m1 0h2m2 0h3m2 0h1m1 0h1m1 0h2m1 0h2m-33 1h7m1 0h1m1 0h1m1 0h2m9 0h1m1 0h2m2 0h3m-32 1h1m1 0h2m1 0h1m2 0h4m3 0h1m1 0h5m1 0h2m1 0h1m1 0h2m1 0h1m-32 1h8m2 0h2m5 0h1m1 0h1m1 0h1m1 0h1m2 0h1m1 0h1m2 0h1m-32 1h2m1 0h3m1 0h2m1 0h5m1 0h1m4 0h1m1 0h2m2 0h1m1 0h1m1 0h1m-29 1h2m1 0h1m2 0h3m1 0h1m4 0h1m3 0h1m1 0h2m4 0h3m-33 1h2m2 0h1m3 0h2m1 0h1m2 0h1m1 0h4m1 0h3m1 0h3m3 0h1m-31 1h1m1 0h1m1 0h3m1 0h6m1 0h3m2 0h5m5 0h1m-31 1h5m4 0h3m2 0h4m1 0h1m5 0h1m3 0h3m-33 1h2m1 0h1m1 0h2m2 0h1m1 0h2m2 0h1m1 0h1m1 0h1m1 0h2m2 0h3m1 0h1m2 0h1m-32 1h1m2 0h1m3 0h2m6 0h1m4 0h1m1 0h1m3 0h3m1 0h2m-33 1h1m3 0h1m1 0h1m1 0h2m1 0h2m1 0h4m1 0h3m2 0h6m1 0h2m-25 1h1m2 0h1m1 0h2m3 0h3m1 0h1m1 0h1m3 0h2m2 0h1m-33 1h7m2 0h2m1 0h1m1 0h1m1 0h1m3 0h1m3 0h1m1 0h1m1 0h4m-32 1h1m5 0h1m1 0h1m1 0h1m2 0h1m2 0h1m2 0h1m1 0h2m1 0h1m3 0h1m2 0h1m-32 1h1m1 0h3m1 0h1m3 0h2m1 0h1m1 0h2m3 0h3m1 0h6m1 0h1m-32 1h1m1 0h3m1 0h1m1 0h1m2 0h1m3 0h1m7 0h1m2 0h1m1 0h2m-30 1h1m1 0h3m1 0h1m3 0h1m1 0h2m9 0h3m2 0h2m2 0h1m-33 1h1m5 0h1m3 0h2m2 0h4m1 0h1m1 0h1m2 0h2m-26 1h7m1 0h2m1 0h1m2 0h1m1 0h1m1 0h1m2 0h1m2 0h3m1 0h2m1 0h1"/></svg></div>
+    <div class="info">
+      获取更多帮助请访问
+      https://support.microsoft.com
+      <br>停止代码: <b>CRITICAL_PROCESS_DIED</b>
+    </div>
+  </section>
+
+  <!-- ============ Windows 11 更新 ============ -->
+  <section class="screen upd10" id="s11-update" data-row="2" data-col="1">
+    <svg class="ring" viewBox="0 0 100 100">
+      <circle class="track" cx="50" cy="50" r="44"></circle>
+      <circle class="prog" id="s11ring" cx="50" cy="50" r="44"></circle>
+    </svg>
+    <div class="pct" id="s11upd">0%</div>
+    <div class="txt">正在处理更新 <span id="s11upd2">0</span>%。请勿关闭你的电脑。</div>
+  </section>
+
+  <!-- ============ HUD ============ -->
+  <div id="hud">
+    <h1>Windows 界面模拟器</h1>
+    <div>当前：<span class="pos" id="hud-pos">Windows 7 · 蓝屏</span></div>
+    <div class="grid" id="hud-grid"></div>
+    <div class="hint">
+      <kbd>↑</kbd><kbd>↓</kbd> 切换系统版本<br>
+      <kbd>←</kbd><kbd>→</kbd> 切换界面类型<br>
+      <kbd>H</kbd> 隐藏/显示此面板
+    </div>
+  </div>
+
+<script>
+(function () {
+  const osNames = ["Windows 7", "Windows 10", "Windows 11"];
+  const typeNames = ["蓝屏", "更新界面"];
+  const screens = [];
+  let row = 0, col = 0;
+
+  // 收集所有屏幕
+  document.querySelectorAll(".screen").forEach(el => {
+    screens.push({
+      el,
+      row: +el.dataset.row,
+      col: +el.dataset.col
+    });
+  });
+
+  function key(r, c) { return r + "-" + c; }
+  const map = {};
+  screens.forEach(s => { map[key(s.row, s.col)] = s; });
+
+  // 构建 HUD 小格子
+  const grid = document.getElementById("hud-grid");
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 2; c++) {
+      const d = document.createElement("div");
+      d.className = "cell";
+      d.textContent = (r + 1) + (c === 0 ? "B" : "U");
+      d.dataset.r = r; d.dataset.c = c;
+      d.addEventListener("click", () => go(r, c));
+      grid.appendChild(d);
+    }
+  }
+
+  function show() {
+    screens.forEach(s => s.el.classList.remove("active"));
+    const cur = map[key(row, col)];
+    if (cur) cur.el.classList.add("active");
+
+    document.getElementById("hud-pos").textContent =
+      osNames[row] + " · " + typeNames[col];
+    document.querySelectorAll("#hud-grid .cell").forEach(cell => {
+      cell.classList.toggle("cur",
+        (+cell.dataset.r === row) && (+cell.dataset.c === col));
+    });
+  }
+
+  function go(r, c) {
+    row = Math.max(0, Math.min(2, r));
+    col = Math.max(0, Math.min(1, c));
+    show();
+  }
+
+  document.addEventListener("keydown", (e) => {
+    switch (e.key) {
+      case "ArrowUp":    go(row - 1, col); e.preventDefault(); break;
+      case "ArrowDown":  go(row + 1, col); e.preventDefault(); break;
+      case "ArrowLeft":  go(row, col - 1); e.preventDefault(); break;
+      case "ArrowRight": go(row, col + 1); e.preventDefault(); break;
+      case "h": case "H":
+        document.getElementById("hud").classList.toggle("hidden");
+        break;
+    }
+  });
+
+  show();
+
+  // ---------- 让“进度”显得真实 ----------
+  // Win7 更新进度条
+  const s7bar = document.getElementById("s7bar");
+  const s7sub = document.getElementById("s7sub");
+  let s7v = 0;
+  setInterval(() => {
+    if (map[key(0,1)].el.classList.contains("active") || true) {
+      s7v = (s7v + Math.random() * 6) % 100;
+      s7bar.style.width = s7v.toFixed(0) + "%";
+      s7sub.textContent = s7v.toFixed(0) + "% 已完成";
+    }
+  }, 900);
+
+  // 蓝屏收集信息百分比
+  function makeBsodPct(id, base) {
+    const el = document.getElementById(id);
+    let v = base;
+    setInterval(() => {
+      v = (v + Math.random() * 4) % 100;
+      el.textContent = v.toFixed(0) + "% 已完成";
+    }, 1200);
+  }
+  makeBsodPct("s10pct", 12);
+  makeBsodPct("s11pct", 35);
+
+  // 圆形更新进度（周长 ≈ 2πr, r=44 → 276.46）
+  function makeRing(ringId, pctId, pctId2) {
+    const ring = document.getElementById(ringId);
+    const pctEl = document.getElementById(pctId);
+    const pctEl2 = pctId2 ? document.getElementById(pctId2) : null;
+    const C = 2 * Math.PI * 44;
+    ring.style.strokeDasharray = C;
+    ring.style.strokeDashoffset = C;
+    let v = 0;
+    setInterval(() => {
+      v = (v + Math.random() * 3) % 100;
+      const off = C * (1 - v / 100);
+      ring.style.strokeDashoffset = off;
+      pctEl.textContent = v.toFixed(0) + "%";
+      if (pctEl2) pctEl2.textContent = v.toFixed(0);
+    }, 800);
+  }
+  makeRing("s10ring", "s10upd");
+  makeRing("s11ring", "s11upd", "s11upd2");
+})();
+</script>
+</body>
+</html>
