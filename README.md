@@ -25,4 +25,6 @@
 2. **Responsive design**: full-screen font sizes scale with `clamp()`, and the layout uses vw/vh units so everything renders completely at any resolution
 3. **Dependency-free, zero build**: a single file opens directly in any browser — ideal for demos, pranks, and front-end practice
 
+### project screenshot
+
 ![project-screenshot](project_screenshot.png)
