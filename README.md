@@ -24,3 +24,5 @@
 1. **Highly faithful details**: the Win7 blue screen uses monospace fonts + `white-space: pre-wrap` to reproduce the original text layout; the Win10/11 blue screen colors, emoticons, and bottom-right white QR codes (drawn with SVG paths) all mirror the real systems
 2. **Responsive design**: full-screen font sizes scale with `clamp()`, and the layout uses vw/vh units so everything renders completely at any resolution
 3. **Dependency-free, zero build**: a single file opens directly in any browser — ideal for demos, pranks, and front-end practice
+
+![project-screenshot](project_screenshot.png)
