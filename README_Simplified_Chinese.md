@@ -27,3 +27,7 @@
 ## 项目截图
 
 ![项目截图](project_screenshot.png)
+
+## 许可证
+
+[MIT](LICENSE)
