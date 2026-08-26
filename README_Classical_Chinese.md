@@ -28,3 +28,7 @@
 ## 案影
 
 ![案影](project_screenshot.png)
+
+## 版權
+
+[MIT](LICENSE)
