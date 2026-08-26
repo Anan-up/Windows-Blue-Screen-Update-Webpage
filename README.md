@@ -28,3 +28,7 @@
 ## project screenshot
 
 ![project-screenshot](project_screenshot.png)
+
+## License
+
+[MIT](LICENSE)
