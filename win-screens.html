@@ -86,7 +86,12 @@
     gap: 18px;
     align-items: flex-start;
     font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    /* 窗口很矮时内容本会被垂直居中顶掉上端且无法滚到；改成溢出时顶部对齐 + 可滚动 */
+    overflow-y: auto;
+    justify-content: safe center;
+    scrollbar-width: none;
   }
+  .bsod10::-webkit-scrollbar { display: none; }
   .bsod10 .face { font-size: clamp(60px, 11vw, 130px); line-height: 1; font-weight: 300; }
   .bsod10 .msg { font-size: clamp(16px, 2.2vw, 28px); max-width: 720px; font-weight: 300; }
   .bsod10 .msg b { font-weight: 600; }
@@ -145,7 +150,7 @@
     color: #fff; font-weight: 400; margin-top: 0;
     font-size: clamp(17px, 2.2vw, 30px); text-align: center;
   }
-  #s10-update .ring .track { stroke: rgba(255,255,255,.3); }
+  /* Win10 更新界面没有圆圈，只有三行文字 */
 
   /* ================= HUD 导航 ================= */
   #hud {
@@ -239,10 +244,6 @@ assistance.</div>
 
   <!-- ============ Windows 10 更新 ============ -->
   <section class="screen upd10" id="s10-update" data-row="1" data-col="1">
-    <svg class="ring" viewBox="0 0 100 100">
-      <circle class="track" cx="50" cy="50" r="44"></circle>
-      <circle class="prog" id="s10ring" cx="50" cy="50" r="44"></circle>
-    </svg>
     <div class="txt">正在配置更新</div>
     <div class="pct">已完成<span id="s10upd">0</span>%</div>
     <div class="txt">请不要关闭你的计算机</div>
@@ -345,6 +346,12 @@ assistance.</div>
 
     if (!next || next === prev) return;
     clearTimeout(fadeTimer);
+    // 快速连按时，上一轮的淡出还没结束就被这里 clearTimeout 取消，
+    // 更早的屏幕会一直留在 active（display:flex + opacity:0）变成隐形全屏覆盖层。
+    // 它们既挡在可见屏幕之上、又会干扰 inScrollable() 的判断，这里统一清掉。
+    screens.forEach(s => {
+      if (s !== next && s !== prev) s.el.classList.remove("active", "shown");   // 注意：screens 里存的是 {el,row,col} 对象，要和 next/prev 这两个对象比，不能拿 s.el 比
+    });
 
     if (!prev) {
       screens.forEach(s => s.el.classList.remove("active", "shown"));
@@ -462,13 +469,14 @@ assistance.</div>
   }
 
   // 蓝屏“正在收集错误信息”百分比
-  function tweenPct(screenEl, id, start) {
+  function tweenPct(screenEl, id, start, suffix = "% 完成") {
     const el = document.getElementById(id);
-    tween(screenEl, (v) => { el.textContent = v.toFixed(0) + "% 完成"; },
+    tween(screenEl, (v) => { el.textContent = v.toFixed(0) + suffix; },
           { rate: 4, interval: 1100, start });
   }
   tweenPct(map[key(1, 0)].el, "s10pct", 12);
   tweenPct(map[key(2, 0)].el, "s11pct", 35);
+  tweenPct(map[key(1, 1)].el, "s10upd", 0, "");   // “已完成 x%”里只写数字
 
   // 圆形更新进度
   function tweenRing(screenEl, ringId, pctId, pctId2) {
@@ -482,7 +490,6 @@ assistance.</div>
       if (pct2) pct2.textContent = v.toFixed(0);
     }, { rate: 3, interval: 800 });
   }
-  tweenRing(map[key(1, 1)].el, "s10ring", null, "s10upd");   // 文案是“已完成 x%”，只写数字
   tweenRing(map[key(2, 1)].el, "s11ring", null, "s11upd2");   // Win11 圆环下不再显示大号百分比
 
   // 每次切进某个屏幕都从起点重新走一遍
